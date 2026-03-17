@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador UPTBAL - Cloud Edition</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { --lila: #4c1d95; --lila-mid: #6b46c1; --accent: #f59e0b; --bg: #f8fafc; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .nav { width: 100%; max-width: 1100px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .nav h1 { font-size: 1.4rem; color: var(--lila); margin: 0; }
+        .btn-nav { background: var(--lila); color: white; padding: 10px 20px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 14px; transition: 0.3s; }
+        .btn-nav:hover { background: var(--lila-mid); transform: translateY(-2px); }
+
+        .container { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; max-width: 1100px; width: 100%; }
+        
+        /* Panel Lateral (Formulario) */
+        .form-section { background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 25px rgba(76, 29, 149, 0.05); width: 360px; border: 1px solid #e2e8f0; }
+        .form-section h2 { color: var(--lila); font-size: 1.6rem; margin: 0 0 25px; letter-spacing: -0.5px; }
+        label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-left: 5px; }
+        input, select { width: 100%; padding: 14px; margin: 8px 0 18px; border: 2px solid #f1f5f9; border-radius: 12px; font-size: 14px; transition: 0.3s; outline: none; box-sizing: border-box; }
+        input:focus, select:focus { border-color: var(--lila-mid); background: #fff; }
+
+        /* VISTA PREVIA DEL CARNET */
+        .carnet-view { display: flex; flex-direction: column; align-items: center; gap: 20px; flex-grow: 1; max-width: 360px; }
+        .preview-label { font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase; margin-bottom: 10px; }
+        
+        #carnet-area { padding: 20px; background: white; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #eee; }
+        #carnet { width: 340px; height: 500px; position: relative; overflow: hidden; display: flex; flex-direction: column; background: #fff; border-radius: 20px; }
+
+        .header { background: var(--lila); color: white; height: 100px; padding: 15px; display: flex; align-items: center; position: relative; box-sizing: border-box; }
+        .header::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 5px; background: var(--accent); }
+        .logo-box { width: 55px; height: 55px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 12px; box-shadow: 0 3px 8px rgba(0,0,0,0.1); }
+        .logo-box img { width: 85%; }
+        .header-text h2 { margin: 0; font-size: 10px; font-weight: 800; text-transform: uppercase; line-height: 1.2; }
+        .header-text p { margin: 3px 0 0; font-size: 9px; opacity: 0.8; font-weight: 500; }
+
+        .photo-container { position: relative; margin: 30px auto 15px; }
+        .photo-area { width: 150px; height: 180px; background: #e2e8f0; border: 4px solid white; border-radius: 18px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        #img-preview { width: 100%; height: 100%; object-fit: cover; }
+        .seal { position: absolute; bottom: -8px; right: -8px; width: 55px; height: 55px; background: linear-gradient(135deg, #e2e8f0, #cbd5e1); border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 900; color: #64748b; text-align: center; box-shadow: 0 3px 6px rgba(0,0,0,0.1); opacity: 0.8; }
+
+        .info { text-align: center; padding: 0 20px; flex-grow: 1; }
+        .info h1 { font-size: 18px; color: var(--lila); margin: 0 0 5px; font-weight: 800; text-transform: uppercase; }
+        .info p { font-size: 15px; color: #64748b; margin: 0 0 12px; font-weight: 600; letter-spacing: 1px; }
+        .major-badge { display: inline-block; background: #f3f0ff; color: var(--lila); padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+
+        .footer { height: 90px; background: #fafafa; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-top: 1px solid #f1f5f9; box-sizing: border-box; }
+        #qrcode { background: white; padding: 5px; border-radius: 8px; border: 1px solid #e2e8f0; }
+
+        .btn-action { width: 100%; padding: 16px; border-radius: 14px; border: none; cursor: pointer; font-weight: 700; font-size: 15px; transition: 0.3s; box-sizing: border-box; }
+        .btn-save { background: #10b981; color: white; margin-top: 10px; box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2); }
+        .btn-save:hover { background: #059669; transform: scale(1.02); }
+        .btn-download { background: var(--lila); color: white; margin-top: 20px; box-shadow: 0 8px 16px rgba(76, 29, 149, 0.2); }
+        .btn-download:hover { background: var(--lila-mid); transform: scale(1.02); }
+    
+    /* EFECTO DE SEGURIDAD TIPO HOLOGRAMA */
+#carnet {
+    position: relative;
+    overflow: hidden; /* Vital para que el brillo no se salga de los bordes */
+}
+
+#carnet::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, 
+        rgba(255, 255, 255, 0) 0%, 
+        rgba(255, 255, 255, 0.6) 50%, 
+        rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-25deg);
+    animation: holograma 5s infinite;
+    pointer-events: none; /* Evita que el brillo bloquee clics en el carnet */
+    z-index: 10;
+}
+
+@keyframes holograma {
+    0% { left: -150%; }
+    15% { left: 200%; }  /* El brillo pasa rápido en el primer 15% del tiempo */
+    100% { left: 200%; } /* Se queda pausado el resto del tiempo */
+}
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <h1>UPTBAL Registro Oficial</h1>
+        <a href="registros.html" class="btn-nav">Ver Registros 📋</a>
+    </div>
+
+    <div class="container">
+        <div class="form-section">
+            <h2>Datos Estudiantiles</h2>
+            
+            <label>Nombre Completo</label>
+            <input type="text" id="in-name" placeholder="Ej. LUIS PEREZ" oninput="updatePreview()">
+            
+            <label>Cédula de Identidad</label>
+            <input type="text" id="in-id" placeholder="V-20.123.456" oninput="updatePreview()">
+            
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <label>Tipo de Sangre</label>
+                    <select id="in-blood">
+                        <option value="O+">O Rh+</option><option value="O-">O Rh-</option>
+                        <option value="A+">A Rh+</option><option value="A-">A Rh-</option>
+                        <option value="B+">B Rh+</option><option value="B-">B Rh-</option>
+                        <option value="AB+">AB Rh+</option><option value="AB-">AB Rh-</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label>Alergias / Médica</label>
+                    <input type="text" id="in-allergies" placeholder="Ej. Ninguna">
+                </div>
+            </div>
+
+            <label>Carrera (PNF)</label>
+            <select id="in-major" onchange="updatePreview()">
+                <option value="Turismo">Turismo</option>
+                <option value="Informática">Informática</option>
+                <option value="Agroalimentaria">Agroalimentaria</option>
+                <option value="Seguridad Alimentaria">Seguridad Alimentaria</option>
+            </select>
+            
+            <label>Fotografía Digital</label>
+            <input type="file" accept="image/*" onchange="loadPhoto(event)">
+            
+            <button class="btn-action btn-save" onclick="saveToCloud()">SUBIR A FIREBASE ✅</button>
+        </div>
+
+        <div class="carnet-view">
+            <div class="preview-label">VISTA PREVIA DEL CARNET (PNG)</div>
+            <div id="carnet-area"> 
+                <div id="carnet">
+                    <div class="header">
+                        <div class="logo-box">
+                            <img src="logo.jpg" alt="UPTBAL" onerror="this.src='https://via.placeholder.com/60?text=Logo'">
+                        </div>
+                        <div class="header-text">
+                            <h2>UPT DE BARLOVENTO</h2>
+                            <h2>"ARGELIA LAYA"</h2>
+                            <p>Carnet Único de Identificación</p>
+                        </div>
+                    </div>
+                    
+                    <div class="photo-container">
+                        <div class="photo-area">
+                            <img id="img-preview" src="https://via.placeholder.com/150x180?text=FOTO">
+                        </div>
+                        <div class="seal">UPTBAL<br>OFICIAL</div>
+                    </div>
+                    
+                    <div class="info">
+                        <h1 id="view-name">ESTUDIANTE</h1>
+                        <p class="ci">C.I. <span id="view-id">00.000.000</span></p>
+                        <span class="major-badge" id="view-major">SELECCIONE PNF</span>
+                    </div>
+                    
+                    <div class="footer">
+                        <div id="qrcode"></div>
+                        <div style="text-align: right; font-size: 10px; color: #94a3b8;">VALIDACIÓN OFICIAL<br><b id="view-serial" style="color: #334155;">AL-000000</b></div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-action btn-download" onclick="downloadPNG()">💾 DESCARGAR CARNET (PNG)</button>
+        </div>
+    </div>
+
+<script>
+    // --- PASO 1: CONEXIÓN FIREBASE (¡PEGA TUS LLAVES AQUÍ!) ---
+    const firebaseConfig = {
+        apiKey: "TU_API_KEY",
+        authDomain: "tu-proyecto.firebaseapp.com",
+        projectId: "tu-proyecto",
+        storageBucket: "tu-proyecto.appspot.com",
+        messagingSenderId: "...",
+        appId: "..."
+    };
+    firebase.initializeApp(firebaseConfig);
+    const dbCloud = firebase.firestore();
+
+    let photoData = "";
+    const qrcode = new QRCode(document.getElementById("qrcode"), { width: 65, height: 65, colorDark: "#4c1d95" });
+
+    function loadPhoto(e) {
+        const reader = new FileReader();
+        reader.onload = (ev) => { photoData = ev.target.result; document.getElementById('img-preview').src = photoData; };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function updatePreview() {
+        const id = document.getElementById('in-id').value || "00.000.000";
+        document.getElementById('view-name').innerText = document.getElementById('in-name').value.toUpperCase() || "ESTUDIANTE";
+        document.getElementById('view-id').innerText = id;
+        document.getElementById('view-major').innerText = document.getElementById('in-major').value;
+
+        // --- CONEXIÓN: QR apunta al perfil individual ---
+        const currentPath = window.location.href.split('/').slice(0, -1).join('/');
+        qrcode.makeCode(`${currentPath}/perfil.html?cedula=${id}`);
+    }
+
+    function saveToCloud() {
+        const id = document.getElementById('in-id').value;
+        if(!id) return alert("Cédula obligatoria");
+        
+        dbCloud.collection("estudiantes").doc(id).set({
+            id, name: document.getElementById('in-name').value, 
+            major: document.getElementById('in-major').value,
+            blood: document.getElementById('in-blood').value,
+            allergies: document.getElementById('in-allergies').value || "Ninguna",
+            photo: photoData, serial: document.getElementById('view-serial').innerText,
+            pass: "12345678", // Contraseña inicial
+            contact: ""
+        }).then(() => { alert("✓ Sincronizado en Firebase"); window.location.href = "registros.html"; });
+    }
+
+    function downloadPNG() {
+        const id = document.getElementById('view-id').innerText;
+        html2canvas(document.getElementById('carnet-area'), { scale: 3, backgroundColor: null }).then(canvas => {
+            const link = document.createElement('a'); link.download = `CARNET_UPTBAL_${id}.png`; link.href = canvas.toDataURL(); link.click();
+        });
+    }
+
+    window.onload = () => {
+        document.getElementById('view-serial').innerText = "AL-" + Math.floor(Math.random()*900000 + 100000);
+        updatePreview();
+    };
+</script>
+</body>
+</html>
